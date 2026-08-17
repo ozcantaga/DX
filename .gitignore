@@ -1,0 +1,14 @@
+# IDE & OS files
+.vscode/
+.idea/
+.gemini/
+.DS_Store
+Thumbs.db
+
+# Dependencies (if added later)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Log files
+*.log
