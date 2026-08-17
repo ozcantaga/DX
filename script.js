@@ -8,7 +8,7 @@
 // ==========================================
 const CONFIG = {
     SUPABASE_URL: 'https://yfhglqjuskpglezvucnw.supabase.co',
-    SUPABASE_ANON_KEY: 'sb_publishable_rjAEV3vxuSOYwYqlvjX05A_nH8VuT2d',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmaGdscWp1c2twZ2xlenZ1Y253Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5ODQ4MTYsImV4cCI6MjEwMjU2MDgxNn0.PZfclmoZ1MCJhdax6ZFYwnAamAJ7TjilWEAuiDcG-kQ',
     AMAZON_BASE_URL: 'https://www.amazon.com.tr',
     SCRATCH_THRESHOLD: 0.40,  // %40 kazındığında otomatik açılır
     DEMO_COUPONS: [           // Supabase bağlantısı yokken kullanılacak
