@@ -7,8 +7,8 @@
 // Supabase bilgilerinizi buraya girin
 // ==========================================
 const CONFIG = {
-    SUPABASE_URL: 'https://yfhglqjuskpglezvucnw.supabase.co',        // Supabase proje URL'niz
-    SUPABASE_ANON_KEY: 'sb_publishable_rjAEV3vxuSOYwYqlvjX05A_nH8VuT2d', // Supabase anon key
+    SUPABASE_URL: 'https://yfhglqjuskpglezvucnw.supabase.co',
+    SUPABASE_ANON_KEY: 'sb_publishable_rjAEV3vxuSOYwYqlvjX05A_nH8VuT2d',
     AMAZON_BASE_URL: 'https://www.amazon.com.tr',
     SCRATCH_THRESHOLD: 0.40,  // %40 kazındığında otomatik açılır
     DEMO_COUPONS: [           // Supabase bağlantısı yokken kullanılacak
