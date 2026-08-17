@@ -178,12 +178,11 @@ async function updateUserLocation(lat, lng) {
 
     try {
         const { error } = await STATE.supabaseClient
-            .from('user_data')
-            .update({
-                latitude: lat,
-                longitude: lng
-            })
-            .eq('id', STATE.dbUserId);
+            .rpc('update_user_location', {
+                p_id: STATE.dbUserId,
+                p_lat: lat,
+                p_lng: lng
+            });
 
         if (error) {
             console.error('Konum güncelleme hatası:', error);
