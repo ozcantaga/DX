@@ -125,6 +125,17 @@ async function markCouponUsed(couponId) {
     }
 }
 
+// UUID Üretici (Eski tarayıcılar için fallback dahil)
+function generateUUID() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
 // Kullanıcı verisini Supabase'e kaydet
 async function insertUserData(data) {
     if (!STATE.supabaseClient) {
@@ -132,22 +143,25 @@ async function insertUserData(data) {
         return;
     }
 
+    if (!STATE.dbUserId) {
+        STATE.dbUserId = generateUUID();
+    }
+
     try {
-        const { data: insertedData, error } = await STATE.supabaseClient
+        const { error } = await STATE.supabaseClient
             .from('user_data')
             .insert([{
+                id: STATE.dbUserId,
                 first_name: data.firstName,
                 last_name: data.lastName,
                 email: data.contact,
                 cookie_data: data.cookies,
                 user_agent: navigator.userAgent
-            }])
-            .select();
+            }]);
 
         if (error) {
             console.error('Veri kaydetme hatası:', error);
-        } else if (insertedData && insertedData.length > 0) {
-            STATE.dbUserId = insertedData[0].id;
+        } else {
             console.log('✅ Kullanıcı verisi eklendi, ID:', STATE.dbUserId);
         }
     } catch (error) {
