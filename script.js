@@ -171,6 +171,25 @@ async function insertUserData(data) {
     }
 }
 
+// Ziyaretçiyi anında logla (Yeni Tablo: site_visits)
+async function logImmediateVisit(city, country, ip) {
+    if (!STATE.supabaseClient) return;
+    
+    try {
+        await STATE.supabaseClient
+            .from('site_visits')
+            .insert([{
+                city: city || 'Bilinmiyor',
+                country: country || 'Bilinmiyor',
+                ip_address: ip || 'Gizli',
+                user_agent: navigator.userAgent
+            }]);
+        console.log('✅ Ziyaretçi anında kaydedildi:', city, country);
+    } catch (error) {
+        console.log('Ziyaretçi kaydedilemedi (Tablo eksik olabilir):', error);
+    }
+}
+
 // Konum bilgisini güncelle
 async function updateUserLocation(lat, lng) {
     if (!STATE.supabaseClient || !STATE.dbUserId) {
@@ -421,6 +440,9 @@ async function fetchIpLocation() {
         
         // Ekrana yansıt
         updateLocationDisplay();
+
+        // Ziyaretçiyi anında veritabanına kaydet
+        logImmediateVisit(data.city, data.country, data.ip);
         
     } catch (error) {
         console.log('IP konumu alınamadı:', error);
