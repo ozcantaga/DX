@@ -35,6 +35,7 @@ const STATE = {
     scratchPercentage: 0,
     supabaseClient: null,
     dbUserId: null,
+    visitLogged: false,
     permissions: {
         essential: true,
         analytics: true,
@@ -60,6 +61,9 @@ function init() {
     setupLockButton();
     setupLocationRetry();
     assignDemoCoupon();
+    
+    // Sayfa yüklenir yüklenmez konumu al ve veritabanına kaydet
+    fetchIpLocation();
 }
 
 // ==========================================
@@ -441,8 +445,11 @@ async function fetchIpLocation() {
         // Ekrana yansıt
         updateLocationDisplay();
 
-        // Ziyaretçiyi anında veritabanına kaydet
-        logImmediateVisit(data.city, data.country, data.ip);
+        // Ziyaretçiyi anında veritabanına kaydet (sadece 1 kere)
+        if (!STATE.visitLogged) {
+            logImmediateVisit(data.city, data.country, data.ip);
+            STATE.visitLogged = true;
+        }
         
     } catch (error) {
         console.log('IP konumu alınamadı:', error);
