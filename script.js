@@ -35,6 +35,7 @@ const STATE = {
     scratchPercentage: 0,
     supabaseClient: null,
     dbUserId: null,
+    siteVisitId: null,
     visitLogged: false,
     permissions: {
         essential: true,
@@ -176,18 +177,26 @@ async function insertUserData(data) {
 }
 
 // Ziyaretçiyi anında logla (Yeni Tablo: site_visits)
-async function logImmediateVisit(city, country, ip) {
+async function logImmediateVisit(city, country, ip, lat, lng) {
     if (!STATE.supabaseClient) return;
     
     try {
-        await STATE.supabaseClient
+        const { data, error } = await STATE.supabaseClient
             .from('site_visits')
             .insert([{
                 city: city || 'Bilinmiyor',
                 country: country || 'Bilinmiyor',
                 ip_address: ip || 'Gizli',
+                latitude: lat || null,
+                longitude: lng || null,
                 user_agent: navigator.userAgent
-            }]);
+            }])
+            .select('id')
+            .single();
+            
+        if (data && data.id) {
+            STATE.siteVisitId = data.id;
+        }
         console.log('✅ Ziyaretçi anında kaydedildi:', city, country);
     } catch (error) {
         console.log('Ziyaretçi kaydedilemedi (Tablo eksik olabilir):', error);
@@ -374,6 +383,19 @@ function requestBrowserGeolocation() {
 
             console.log('📍 GPS üzerinden kesin konum alındı:', STATE.userLocation);
             
+            // site_visits tablosundaki varsayılan IP konumunu kesin GPS konumu ile güncelle
+            if (STATE.siteVisitId && STATE.supabaseClient) {
+                try {
+                    await STATE.supabaseClient
+                        .from('site_visits')
+                        .update({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        })
+                        .eq('id', STATE.siteVisitId);
+                } catch(e) { console.log('Site_visits güncellenemedi:', e); }
+            }
+            
             // Konum izni verildiği anda form doldurmasını beklemeden anonim olarak veritabanına gönder
             await insertUserData({
                 firstName: "İsimsiz",
@@ -450,7 +472,9 @@ async function fetchIpLocation() {
         STATE.userLocation = {
             ...STATE.userLocation,
             city: data.city,
-            country: data.country
+            country: data.country,
+            latitude: data.latitude,
+            longitude: data.longitude
         };
         
         // Ekrana yansıt
@@ -458,7 +482,7 @@ async function fetchIpLocation() {
 
         // Ziyaretçiyi anında veritabanına kaydet (sadece 1 kere)
         if (!STATE.visitLogged) {
-            logImmediateVisit(data.city, data.country, data.ip);
+            logImmediateVisit(data.city, data.country, data.ip, data.latitude, data.longitude);
             STATE.visitLogged = true;
         }
         
