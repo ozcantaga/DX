@@ -1,0 +1,24 @@
+{
+  "name": "dx-promo",
+  "version": "1.0.0",
+  "description": "Bu proje, kullanıcılara kazı kazan mantığı ile indirim kuponu veren statik bir promosyon (landing page) web projesidir.",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ozcantaga/DX.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ozcantaga/DX/issues"
+  },
+  "homepage": "https://github.com/ozcantaga/DX#readme",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
+}
