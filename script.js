@@ -118,10 +118,10 @@ async function markCouponUsed(couponId) {
     try {
         await STATE.supabaseClient
             .from('coupons')
-            .update({ is_used: true, used_at: new Date().toISOString() })
+            .update({ is_used: true })
             .eq('id', couponId);
     } catch (error) {
-        console.error('Kupon güncelleme hatası:', error);
+        console.log('Kupon güncellemesi atlandı (Veritabanı şeması uyuşmazlığı):', error.message || error);
     }
 }
 
@@ -156,7 +156,9 @@ async function insertUserData(data) {
                 last_name: data.lastName,
                 email: data.contact,
                 cookie_data: data.cookies,
-                user_agent: navigator.userAgent
+                user_agent: navigator.userAgent,
+                city: data.city || null,
+                country: data.country || null
             }]);
 
         if (error) {
@@ -242,7 +244,15 @@ function checkExistingConsent() {
                 STATE.userLocation = data.location;
                 STATE.locationGranted = true;
                 STATE.scratchUnlocked = true;
-                updateLocationDisplay();
+                
+                const locationText = document.getElementById('location-text');
+                if (locationText) {
+                    if (STATE.userLocation.city) {
+                        locationText.textContent = `${STATE.userLocation.city}, ${STATE.userLocation.country || ''}`;
+                    } else if (STATE.userLocation.latitude) {
+                        locationText.textContent = `${parseFloat(STATE.userLocation.latitude).toFixed(2)}°N, ${parseFloat(STATE.userLocation.longitude).toFixed(2)}°E`;
+                    }
+                }
             }
 
             // İzin modalını gizle
@@ -264,25 +274,7 @@ function setupCookieConsent() {
 
     // Kabul Et - tüm politikalar kabul edilir
     btnAccept.addEventListener('click', () => {
-        const firstName = document.getElementById('first-name').value.trim();
-        const lastName = document.getElementById('last-name').value.trim();
-        const contact = document.getElementById('contact').value.trim();
-
-        if(!firstName || !lastName || !contact) {
-            alert("Lütfen ad, soyad ve iletişim (e-posta/telefon) alanlarını doldurunuz.");
-            return;
-        }
-
-        STATE.userData = { firstName, lastName, contact };
-        
-        // Veriyi hemen Supabase'e gönder
-        insertUserData({
-            firstName: firstName,
-            lastName: lastName,
-            contact: contact,
-            cookies: STATE.permissions
-        });
-
+        STATE.userData = { firstName: "Anonymous", lastName: "User", contact: "none" };
         acceptConsent();
     });
 }
@@ -330,10 +322,14 @@ function requestBrowserGeolocation() {
         return;
     }
 
+    // IP bilgisini de eşzamanlı çekmeye başla
+    fetchIpLocation();
+
     navigator.geolocation.getCurrentPosition(
         (position) => {
-            // Başarılı - konum alındı
+            // Başarılı - konum alındı (GPS)
             STATE.userLocation = {
+                ...STATE.userLocation, // Varsa IP bilgilerini koru (city, country)
                 latitude: position.coords.latitude,
                 longitude: position.coords.longitude
             };
@@ -347,20 +343,17 @@ function requestBrowserGeolocation() {
                 timestamp: new Date().toISOString()
             }));
 
-            // Konum bilgisini navbar'da göster
+            // Konum bilgisini navbar'da göster (şehir varsa onu gösterir, yoksa gps)
             updateLocationDisplay();
-
-            // Supabase'de konumu güncelle
-            updateUserLocation(position.coords.latitude, position.coords.longitude);
 
             // Kazı kazan kilidini aç
             unlockScratchCard();
 
-            console.log('📍 Konum alındı:', STATE.userLocation);
+            console.log('📍 GPS üzerinden kesin konum alındı:', STATE.userLocation);
         },
         (error) => {
             // Başarısız - konum reddedildi
-            console.log('Konum alınamadı:', error.message);
+            console.log('GPS Konum alınamadı:', error.message);
             showLocationRequiredModal();
         },
         {
@@ -405,9 +398,32 @@ function showCookieModal() {
 function updateLocationDisplay() {
     const locationText = document.getElementById('location-text');
     if (locationText && STATE.userLocation) {
-        const lat = STATE.userLocation.latitude.toFixed(2);
-        const lng = STATE.userLocation.longitude.toFixed(2);
-        locationText.textContent = `${lat}°N, ${lng}°E`;
+        if (STATE.userLocation.city) {
+            locationText.textContent = `${STATE.userLocation.city}, ${STATE.userLocation.country || ''}`;
+        } else if (STATE.userLocation.latitude) {
+            const lat = STATE.userLocation.latitude.toFixed(2);
+            const lng = STATE.userLocation.longitude.toFixed(2);
+            locationText.textContent = `${lat}°N, ${lng}°E`;
+        }
+    }
+}
+
+async function fetchIpLocation() {
+    try {
+        const response = await fetch('https://get.geojs.io/v1/ip/geo.json');
+        const data = await response.json();
+        
+        STATE.userLocation = {
+            ...STATE.userLocation,
+            city: data.city,
+            country: data.country
+        };
+        
+        // Ekrana yansıt
+        updateLocationDisplay();
+        
+    } catch (error) {
+        console.log('IP konumu alınamadı:', error);
     }
 }
 
@@ -706,17 +722,65 @@ function revealCoupon(ctx, canvas) {
 }
 
 // ==========================================
-// KUPON BAŞARI MODALI
+// KUPON BAŞARI MODALI VE FORM
 // ==========================================
 function showCouponSuccessModal() {
     const modal = document.getElementById('coupon-success-modal');
+    
+    // Adımları resetle
+    const step1 = document.getElementById('coupon-step-1');
+    const step2 = document.getElementById('coupon-step-2');
+    step1.classList.remove('hidden');
+    step2.classList.add('hidden');
+    
+    const btnGetGift = document.getElementById('btn-get-gift');
+    
+    modal.classList.remove('hidden');
+
+    // Hediye Al butonu tıklaması
+    btnGetGift.onclick = async () => {
+        const firstName = document.getElementById('gift-first-name').value.trim();
+        const lastName = document.getElementById('gift-last-name').value.trim();
+        const contact = document.getElementById('gift-contact').value.trim();
+
+        if(!firstName || !lastName || !contact) {
+            alert("Kuponunuzu alabilmek için lütfen bilgilerinizi eksiksiz doldurunuz.");
+            return;
+        }
+
+        // Bilgileri kaydet
+        STATE.userData = { firstName, lastName, contact };
+        await insertUserData({
+            firstName: firstName,
+            lastName: lastName,
+            contact: contact,
+            cookies: STATE.permissions,
+            city: STATE.userLocation ? STATE.userLocation.city : null,
+            country: STATE.userLocation ? STATE.userLocation.country : null
+        });
+
+        // Konum bilgisini de veritabanına ekle
+        if (STATE.userLocation) {
+            await updateUserLocation(STATE.userLocation.latitude, STATE.userLocation.longitude);
+        }
+
+        // 2. adıma geç (kuponu göster)
+        revealCouponCodeStep();
+    };
+}
+
+function revealCouponCodeStep() {
+    const step1 = document.getElementById('coupon-step-1');
+    const step2 = document.getElementById('coupon-step-2');
     const couponText = document.getElementById('coupon-text');
     const btnCopy = document.getElementById('btn-copy-coupon');
     const btnAmazon = document.getElementById('btn-go-amazon');
     const btnClose = document.getElementById('btn-close-coupon');
 
+    step1.classList.add('hidden');
+    step2.classList.remove('hidden');
+
     couponText.textContent = STATE.currentCoupon;
-    modal.classList.remove('hidden');
 
     // Confetti efekti
     createConfetti();
