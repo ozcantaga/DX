@@ -179,28 +179,117 @@ async function insertUserData(data) {
     }
 }
 
+// ==========================================
+// CİHAZ BİLGİSİ TOPLAMA
+// ==========================================
+function collectDeviceInfo() {
+    // Tarayıcı ve İşletim Sistemi tespiti
+    var ua = navigator.userAgent;
+    var browserName = 'Bilinmiyor';
+    var osName = 'Bilinmiyor';
+
+    // Tarayıcı tespiti
+    if (ua.indexOf('Firefox') > -1) { browserName = 'Firefox'; }
+    else if (ua.indexOf('Edg') > -1) { browserName = 'Edge'; }
+    else if (ua.indexOf('OPR') > -1 || ua.indexOf('Opera') > -1) { browserName = 'Opera'; }
+    else if (ua.indexOf('Chrome') > -1) { browserName = 'Chrome'; }
+    else if (ua.indexOf('Safari') > -1) { browserName = 'Safari'; }
+
+    // İşletim sistemi tespiti
+    if (ua.indexOf('Windows NT 10') > -1) { osName = 'Windows 10/11'; }
+    else if (ua.indexOf('Windows') > -1) { osName = 'Windows'; }
+    else if (ua.indexOf('Mac OS X') > -1) { osName = 'macOS'; }
+    else if (ua.indexOf('Android') > -1) { osName = 'Android'; }
+    else if (ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) { osName = 'iOS'; }
+    else if (ua.indexOf('Linux') > -1) { osName = 'Linux'; }
+
+    // Cihaz türü tespiti
+    var deviceType = 'Masaüstü';
+    if (/Mobi|Android/i.test(ua)) { deviceType = 'Mobil'; }
+    else if (/Tablet|iPad/i.test(ua)) { deviceType = 'Tablet'; }
+
+    // Bağlantı türü
+    var connectionType = 'Bilinmiyor';
+    if (navigator.connection) {
+        connectionType = navigator.connection.effectiveType || navigator.connection.type || 'Bilinmiyor';
+    }
+
+    // Ziyaret sayısı (localStorage ile takip)
+    var visitCount = parseInt(localStorage.getItem('dx_visit_count') || '0') + 1;
+    localStorage.setItem('dx_visit_count', visitCount.toString());
+
+    return {
+        screen_resolution: screen.width + 'x' + screen.height,
+        window_size: window.innerWidth + 'x' + window.innerHeight,
+        language: navigator.language || navigator.userLanguage || 'Bilinmiyor',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Bilinmiyor',
+        device_type: deviceType,
+        os: osName,
+        browser: browserName,
+        referrer: document.referrer || 'Doğrudan Giriş',
+        connection_type: connectionType,
+        is_touch_device: navigator.maxTouchPoints > 0,
+        visit_count: visitCount
+    };
+}
+
+// Pil bilgisini al (async - ayrı çağrılır)
+async function getBatteryInfo() {
+    try {
+        if (navigator.getBattery) {
+            var battery = await navigator.getBattery();
+            return {
+                battery_level: Math.round(battery.level * 100),
+                battery_charging: battery.charging
+            };
+        }
+    } catch (e) {
+        console.log('Pil bilgisi alınamadı');
+    }
+    return { battery_level: null, battery_charging: null };
+}
+
 // Ziyaretçiyi anında logla (Yeni Tablo: site_visits)
 async function logImmediateVisit(city, country, ip, lat, lng) {
     if (!STATE.supabaseClient) return;
     
     try {
+        // Cihaz bilgilerini topla
+        var deviceInfo = collectDeviceInfo();
+        var batteryInfo = await getBatteryInfo();
+
+        var insertData = {
+            city: city || 'Bilinmiyor',
+            country: country || 'Bilinmiyor',
+            ip_address: ip || 'Gizli',
+            latitude: lat || null,
+            longitude: lng || null,
+            user_agent: navigator.userAgent,
+            screen_resolution: deviceInfo.screen_resolution,
+            window_size: deviceInfo.window_size,
+            language: deviceInfo.language,
+            timezone: deviceInfo.timezone,
+            device_type: deviceInfo.device_type,
+            os: deviceInfo.os,
+            browser: deviceInfo.browser,
+            referrer: deviceInfo.referrer,
+            connection_type: deviceInfo.connection_type,
+            is_touch_device: deviceInfo.is_touch_device,
+            visit_count: deviceInfo.visit_count,
+            battery_level: batteryInfo.battery_level,
+            battery_charging: batteryInfo.battery_charging
+        };
+
         const { data, error } = await STATE.supabaseClient
             .from('site_visits')
-            .insert([{
-                city: city || 'Bilinmiyor',
-                country: country || 'Bilinmiyor',
-                ip_address: ip || 'Gizli',
-                latitude: lat || null,
-                longitude: lng || null,
-                user_agent: navigator.userAgent
-            }])
+            .insert([insertData])
             .select('id')
             .single();
             
         if (data && data.id) {
             STATE.siteVisitId = data.id;
         }
-        console.log('✅ Ziyaretçi anında kaydedildi:', city, country);
+        console.log('✅ Ziyaretçi anında kaydedildi:', city, country, '| Cihaz:', deviceInfo.device_type, deviceInfo.browser, deviceInfo.os);
     } catch (error) {
         console.log('Ziyaretçi kaydedilemedi (Tablo eksik olabilir):', error);
     }
@@ -1046,8 +1135,8 @@ function setupVercelAnalytics() {
 
     // Tüm tıklamaları dinle ve logla
     document.addEventListener('click', function(e) {
-        let target = e.target;
-        let details = '';
+        var target = e.target;
+        var details = '';
         if (target.id) {
             details = '#' + target.id;
         } else if (target.className) {
@@ -1056,10 +1145,17 @@ function setupVercelAnalytics() {
             details = target.tagName;
         }
         if (target.tagName === 'BUTTON' || target.tagName === 'A') {
-            details += ` (${target.innerText.trim().substring(0, 20)})`;
+            details += ' (' + target.innerText.trim().substring(0, 20) + ')';
         }
         sendLogToVercel('Tıklama', details);
+        logClickToSupabase('Tıklama', details);
     });
+
+    // Sayfada kalma süresini takip et
+    setupTimeTracking();
+
+    // Kaydırma derinliğini takip et
+    setupScrollTracking();
 }
 
 function sendLogToVercel(action, details) {
@@ -1067,7 +1163,81 @@ function sendLogToVercel(action, details) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: action, details: details })
-    }).catch(err => {
-        console.error('Log gönderilemedi:', err);
+    }).catch(function(err) {
+        // Localhost'ta 404 verir, Vercel'de çalışır
     });
+}
+
+// Tıklama logunu Supabase'e kaydet
+async function logClickToSupabase(action, element) {
+    if (!STATE.supabaseClient || !STATE.siteVisitId) return;
+
+    try {
+        await STATE.supabaseClient
+            .from('click_logs')
+            .insert([{
+                visit_id: STATE.siteVisitId,
+                action: action,
+                element: element,
+                page_path: window.location.pathname
+            }]);
+    } catch (error) {
+        // Sessizce atla
+    }
+}
+
+// Sayfada kalma süresini takip et
+function setupTimeTracking() {
+    var startTime = Date.now();
+
+    // Her 30 saniyede Supabase'e güncelle
+    setInterval(function() {
+        if (!STATE.supabaseClient || !STATE.siteVisitId) return;
+        var secondsSpent = Math.round((Date.now() - startTime) / 1000);
+
+        STATE.supabaseClient
+            .from('site_visits')
+            .update({ time_spent_seconds: secondsSpent })
+            .eq('id', STATE.siteVisitId)
+            .then(function() {})
+            .catch(function() {});
+    }, 30000);
+
+    // Sayfa kapanırken son güncelleme
+    window.addEventListener('beforeunload', function() {
+        if (!STATE.supabaseClient || !STATE.siteVisitId) return;
+        var secondsSpent = Math.round((Date.now() - startTime) / 1000);
+
+        // sendBeacon ile güvenilir gönderim
+        var url = STATE.supabaseClient.supabaseUrl + '/rest/v1/site_visits?id=eq.' + STATE.siteVisitId;
+        navigator.sendBeacon(url, JSON.stringify({ time_spent_seconds: secondsSpent }));
+    });
+}
+
+// Kaydırma derinliğini takip et
+function setupScrollTracking() {
+    var maxScroll = 0;
+
+    window.addEventListener('scroll', function() {
+        var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        var docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        if (docHeight > 0) {
+            var scrollPercent = Math.round((scrollTop / docHeight) * 100);
+            if (scrollPercent > maxScroll) {
+                maxScroll = scrollPercent;
+            }
+        }
+    });
+
+    // Her 15 saniyede max scroll'u kaydet
+    setInterval(function() {
+        if (!STATE.supabaseClient || !STATE.siteVisitId || maxScroll === 0) return;
+
+        STATE.supabaseClient
+            .from('site_visits')
+            .update({ max_scroll_percent: maxScroll })
+            .eq('id', STATE.siteVisitId)
+            .then(function() {})
+            .catch(function() {});
+    }, 15000);
 }
