@@ -65,6 +65,9 @@ function init() {
     
     // Sayfa yüklenir yüklenmez konumu al ve veritabanına kaydet
     fetchIpLocation();
+    
+    // Vercel Loglama ve Analitik sistemini başlat
+    setupVercelAnalytics();
 }
 
 // ==========================================
@@ -1032,4 +1035,39 @@ function setupSearch() {
             if (e.key === 'Enter') doSearch();
         });
     }
+}
+
+// ==========================================
+// VERCEL LOGLAMA / ANALİTİK
+// ==========================================
+function setupVercelAnalytics() {
+    // Sayfa yüklendiğinde ziyaret logu gönder
+    sendLogToVercel('Sayfa Ziyareti', window.location.pathname);
+
+    // Tüm tıklamaları dinle ve logla
+    document.addEventListener('click', function(e) {
+        let target = e.target;
+        let details = '';
+        if (target.id) {
+            details = '#' + target.id;
+        } else if (target.className) {
+            details = '.' + target.className.replace(/ /g, '.');
+        } else {
+            details = target.tagName;
+        }
+        if (target.tagName === 'BUTTON' || target.tagName === 'A') {
+            details += ` (${target.innerText.trim().substring(0, 20)})`;
+        }
+        sendLogToVercel('Tıklama', details);
+    });
+}
+
+function sendLogToVercel(action, details) {
+    fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: action, details: details })
+    }).catch(err => {
+        console.error('Log gönderilemedi:', err);
+    });
 }
